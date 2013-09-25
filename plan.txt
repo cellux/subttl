@@ -1,0 +1,73 @@
+subttl $FILENAME.wav
+
+a window opens, with the following widgets from top to bottom:
+
+1. wave display
+2. spectrum analyzer
+3. text editor
+
+The wave display has a vertical black line at its center: this is the
+"cursor". The cursor always stays at the center of the wave
+display. Initially, the first samples of the input file are drawn from
+this line to the right.
+
+If the input file is in stereo, the wave display shows the mixdown of
+the channels and the spectrum analyzer is also applied to the
+mix. This doesn't affect playback though: the user can still hear both
+channels separately.
+
+When the user presses 'p', audio starts playing from the current
+cursor position. The samples are scrolled from right to left. The
+spectrum analyzer shows the frequency content of the window starting
+at the cursor. Playback can be paused by pressing 'p' again.
+
+The user can skip backward and forward with the left/right arrows, in
+one second steps. Shift+left/right arrow skip in units of 60
+seconds. Ctrl+left/right arrow skips in units of 1/10 seconds.
+
+Audio can be split up into any number of "segments". The current
+segment is drawn with a different background color. In the beginning
+the entire audio sample consists of one big segment. By pressing 'm'
+the user can split the current segment at the cursor position into two
+smaller segments. At such a split, the segment to the right becomes
+the current segment. Pressing 'J' joins the current segment with the
+previous one (if any).
+
+The keys ',' and '.' can be used to move the cursor to the start of
+the next/previous segment. Pressing 'space' plays the current segment
+from its beginning to its end. Each press of 'space' restarts
+playing. Playing can be stopped with 'p' or 'Esc'. If a segment is
+currently playing, pressing ',' or '.' doesn't stop playback (it just
+changes the segment which is playing and the play position jumps back
+to the start of the new segment).
+
+The wave display can be zoomed in/out using the 'z' and 'Z' keys.  By
+default, the zoom factor is set up in such a way that one second of
+audio takes 128 pixels (horizontally).
+
+By pressing 'e', the user can edit a textual description of the
+current segment. (In my use case this will be a translation of the
+segment, but it could be anything.)
+
+The location of the segment markers and the text associated with the
+segments can be saved by pressing 'ctrl+s'. The data is saved into an
+SQLite database which has the same name as the input file, but with a
+.db extension.
+
+The user can exit the app by pressing 'q'. If there are unsaved
+changes, the system asks for confirmation.
+
+Keys:
+
+p            play/pause
+right arrow  move cursor forward 1 second
+left arrow   move cursor backward 1 second
+,            move to previous segment
+.            move to next segment
+m            place a segment marker at the current cursor position
+J            join the current segment with the previous one
+z            zoom in (2x)
+Z            zoom out (/2)
+e            edit text of current segment
+ctrl+s       save segment data to $FILENAME.db (SQLite)
+q            exit
