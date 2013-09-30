@@ -268,10 +268,10 @@ public:
 	  if (strcmp(line,"\n")==0) break;
 	  text.append(line);
 	}
-	cursor_ = (from.hours*60*60
-		   + from.minutes*60
-		   + from.seconds
-		   + from.ms*1000) * samplerate_;
+	cursor_ = ((float)from.hours*60*60
+		   + (float)from.minutes*60
+		   + (float)from.seconds
+		   + ((float)from.ms/1000.0)) * (float)samplerate_;
 	// don't add the first segment, it's already there
 	if (cursor_ > 0) {
 	  addSegment();
