@@ -1,11 +1,13 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <cassert>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <regex.h>
 
 #include <FL/Fl.H>
 #include <FL/Enumerations.H>
@@ -31,6 +33,11 @@ public:
   const char* text() const { return text_.c_str(); }
   void text(const char *t) {
     text_ = t;
+    // strip out empty lines
+    size_t pos;
+    while ((pos = text_.find("\n\n")) != std::string::npos) {
+      text_.erase(pos+1,1);
+    }
   }
 };
 
@@ -172,8 +179,8 @@ public:
     to->hours = to->minutes / 60;
     to->minutes %= 60;
   }
-  void saveSegments(std::string &path) {
-    std::string tmppath = path + ".tmp";
+  void saveSegments(std::string &srtpath) {
+    std::string tmppath = srtpath + ".tmp";
     FILE *f = fopen(tmppath.c_str(), "w");
     if (f) {
       TimeOffset start, end;
@@ -184,20 +191,102 @@ public:
         fprintf(f, "%02d:%02d:%02d,%03d --> %02d:%02d:%02d,%03d\n",
                 start.hours, start.minutes, start.seconds, start.ms,
                 end.hours, end.minutes, end.seconds, end.ms);
-        fprintf(f, segments_[i].text());
+        fputs(segments_[i].text(), f);
         fprintf(f, "\n");
       }
       fclose(f);
-      if (rename(tmppath.c_str(), path.c_str()) != 0) {
-        Fl::warning("cannot save subtitles to %s: error when trying to replace with temp file\n", path.c_str());
+      if (rename(tmppath.c_str(), srtpath.c_str()) != 0) {
+        Fl::warning("cannot save subtitles to %s: error when trying to replace with temp file\n", srtpath.c_str());
       }
       else {
-        printf("subtitles successfully saved to %s\n", path.c_str());
+        printf("subtitles successfully saved to %s\n", srtpath.c_str());
       }
     }
     else {
-      Fl::warning("cannot create temporary file: %s\n", path.c_str());
+      Fl::warning("cannot create temporary file: %s\n", srtpath.c_str());
     }
+  }
+  void loadSegments(std::string &srtpath) {
+    regex_t re_seq_number;
+    regex_t re_start_end;
+    regmatch_t matches[9];
+    assert(regcomp(&re_seq_number, "^[0-9]+\n$", REG_NOSUB|REG_EXTENDED)==0);
+    assert(regcomp(&re_start_end, "^([0-9]+):([0-9]+):([0-9]+),([0-9]+)[[:space:]]+-+>[[:space:]]+([0-9]+):([0-9]+):([0-9]+),([0-9]+)\n$", REG_EXTENDED)==0);
+    const int LINESIZE = 256;
+    char line[LINESIZE];
+    int nline = 0;
+    int nseq = 0;
+    FILE *f = fopen(srtpath.c_str(), "r");
+    if (f) {
+      while (1) {
+	// consume empty lines
+	while (! feof(f)) {
+	  if (fgets(line, LINESIZE, f)) {
+	    ++nline;
+	    // read until first non-empty line
+	    if (strcmp(line,"\n")!=0) break;
+	  }
+	}
+	if (feof(f)) break;
+	// the first non-empty line must be the next sequence number
+	++nseq;
+	if (regexec(&re_seq_number, line, 0, 0, 0)!=0) {
+	  Fl::fatal("error parsing SRT file %s: there should be a sequence number on line %d", srtpath.c_str(), nline);
+	}
+	if (nseq != atoi(line)) {
+	  Fl::fatal("error parsing SRT file %s: bad sequence number on line %d, expected: %d, found: %d", srtpath.c_str(), nline, nseq, atoi(line));
+	}
+	// the second line must be the timeinfo (HH:MM:SS,fff --> HH:MM:SS,fff)
+	//
+	// (fff is milliseconds)
+	if (! fgets(line, LINESIZE, f)) {
+	  Fl::fatal("error parsing SRT file: %s", srtpath.c_str());
+	}
+	++nline;
+	if (regexec(&re_start_end, line, 9, matches, 0)!=0) {
+	  Fl::fatal("error parsing SRT file %s: invalid timecode on line %d", srtpath.c_str(), nline);
+	}
+	// make all matched numbers in `line' separate strings
+	for (int i=1; i<=8; i++) {
+	  *(line+matches[i].rm_eo) = 0;
+	}
+	TimeOffset from;
+	from.hours   = atoi(line+matches[1].rm_so);
+	from.minutes = atoi(line+matches[2].rm_so);
+	from.seconds = atoi(line+matches[3].rm_so);
+	from.ms      = atoi(line+matches[4].rm_so);
+	TimeOffset to;
+	to.hours     = atoi(line+matches[5].rm_so);
+	to.minutes   = atoi(line+matches[6].rm_so);
+	to.seconds   = atoi(line+matches[7].rm_so);
+	to.ms        = atoi(line+matches[8].rm_so);
+	// the next lines provide the text of the segment
+	std::string text;
+	while (fgets(line, LINESIZE, f)) {
+	  ++nline;
+	  // read up to the first empty line
+	  if (strcmp(line,"\n")==0) break;
+	  text.append(line);
+	}
+	cursor_ = (from.hours*60*60
+		   + from.minutes*60
+		   + from.seconds
+		   + from.ms*1000) * samplerate_;
+	// don't add the first segment, it's already there
+	if (cursor_ > 0) {
+	  addSegment();
+	}
+	updateSegmentText(text.c_str());
+      }
+      fclose(f);
+    }
+    else {
+      Fl::warning("cannot open SRT file for reading: %s\n", srtpath.c_str());
+    }
+    regfree(&re_start_end);
+    regfree(&re_seq_number);
+    cursor_ = 0;
+    curseg_ = 0;
   }
 };
 
@@ -262,7 +351,8 @@ void cbRedrawWidget(void *data) {
 }
 
 class MainWindow : public Fl_Double_Window {
-  char *path_;
+  std::string path_;
+  std::string srtpath_;
   SampleBuffer *sb_;
   bool playing_;
   bool playseg_;
@@ -274,11 +364,15 @@ public:
   MainWindow(int w, int h, char *path, SampleBuffer *sb)
     : Fl_Double_Window(w, h),
       path_(path),
+      srtpath_(path_+".srt"),
       sb_(sb),
       playing_(false),
       playseg_(false),
       editing_(false)
   {
+    if (access(srtpath_.c_str(), F_OK)==0) {
+      sb_->loadSegments(srtpath_);
+    }
     label(APP_NAME);
     Fl_Tile *tile = new Fl_Tile(0,0,w,h);
     waveWidget_ = new WaveWidget(0,0,w,h/2,sb);
@@ -286,6 +380,7 @@ public:
     editor_->buffer(new Fl_Text_Buffer());
     tile->end();
     end();
+    updateEditorText();
     Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWidget, waveWidget_);
   }
   void updateEditorText() {
@@ -353,10 +448,18 @@ public:
       editor_->set_visible_focus();
       editor_->take_focus();
       break;
+    case 's':
+      if (Fl::event_shift()) {
+	sb_->saveSegments(srtpath_);
+	break;
+      }
     case FL_Escape:
       if (editing_) {
         editing_ = false;
         sb_->updateSegmentText(editor_->buffer()->text());
+	// update the editor because the segment may have modified the
+	// text (e.g. may have removed empty lines from it)
+	updateEditorText();
         editor_->clear_visible_focus();
         waveWidget_->take_focus();
       }
@@ -434,7 +537,7 @@ int main(int argc, char **argv) {
   if (sfInfo.frames == 0) {
     Fl::fatal("Soundfile has no frames!\n");
   }
-  printf("Soundfile information: frames=%lld, samplerate=%d, channels=%d\n", sfInfo.frames, sfInfo.samplerate, sfInfo.channels);
+  printf("Soundfile information: frames=%llu, samplerate=%d, channels=%d\n", (long long) sfInfo.frames, sfInfo.samplerate, sfInfo.channels);
   float *samples = (float*) malloc(sizeof(float)*sfInfo.frames*sfInfo.channels);
   if (! samples) {
     Fl::fatal("not enough memory!\n");
