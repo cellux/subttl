@@ -173,7 +173,7 @@ public:
   void calcTimeOffset(int offset, TimeOffset *to) {
     float seconds = offset / samplerate_;
     to->seconds = (int) seconds;
-    to->ms = (seconds - to->seconds) * 1000;
+    to->ms = (seconds - (float) to->seconds) * 1000.0;
     to->minutes = to->seconds / 60;
     to->seconds %= 60;
     to->hours = to->minutes / 60;
