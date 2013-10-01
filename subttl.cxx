@@ -201,7 +201,7 @@ public:
     return pk;
   }
   void calcTimeOffset(int offset, TimeOffset *to) {
-    float seconds = offset / samplerate_;
+    float seconds = (float) offset / (float) samplerate_;
     to->seconds = (int) seconds;
     to->ms = (seconds - (float) to->seconds) * 1000.0;
     to->minutes = to->seconds / 60;
