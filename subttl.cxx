@@ -357,12 +357,6 @@ public:
   }
 };
 
-void cbRedrawWidget(void *data) {
-  Fl_Widget *w = (Fl_Widget*) data;
-  w->redraw();
-  Fl::repeat_timeout(1.0/REFRESH_RATE, cbRedrawWidget, w);
-}
-
 class MainWindow : public Fl_Double_Window {
   std::string path_;
   std::string srtpath_;
@@ -372,6 +366,7 @@ class MainWindow : public Fl_Double_Window {
   bool editing_;
   WaveWidget *waveWidget_;
   Fl_Text_Editor *editor_;
+  int cursorAtLastRedraw_;
 
 public:
   MainWindow(int w, int h, char *path, SampleBuffer *sb)
@@ -381,7 +376,8 @@ public:
       sb_(sb),
       playing_(false),
       playseg_(false),
-      editing_(false)
+      editing_(false),
+      cursorAtLastRedraw_(0)
   {
     if (access(srtpath_.c_str(), F_OK)==0) {
       sb_->loadSegments(srtpath_);
@@ -394,7 +390,7 @@ public:
     tile->end();
     end();
     updateEditorText();
-    Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWidget, waveWidget_);
+    Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWaveWidgetIfNecessary, this);
   }
   void updateEditorText() {
     editor_->buffer()->text(sb_->curseg().text());
@@ -402,6 +398,17 @@ public:
   static void cbUpdateEditorText(void *data) {
     MainWindow *mw = (MainWindow*) data;
     mw->updateEditorText();
+  }
+  void redrawWaveWidgetIfNecessary() {
+    if (abs(sb_->cursor()-cursorAtLastRedraw_) >= FRAMES_PER_PIXEL) {
+      waveWidget_->redraw();
+      cursorAtLastRedraw_ = sb_->cursor();
+    }
+  }
+  static void cbRedrawWaveWidgetIfNecessary(void *data) {
+    MainWindow *mw = (MainWindow*) data;
+    mw->redrawWaveWidgetIfNecessary();
+    Fl::repeat_timeout(1.0/REFRESH_RATE, cbRedrawWaveWidgetIfNecessary, data);
   }
   void copyFramesForPlayback(float *buf, int frameCount) {
     if (playing_) {
