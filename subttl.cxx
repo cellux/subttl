@@ -21,6 +21,7 @@
 
 static const char *APP_NAME = "subttl";
 static const int REFRESH_RATE = 25; // Hz
+static const int FRAMES_PER_PIXEL = 1000;
 
 struct Segment {
 private:
@@ -300,7 +301,7 @@ class WaveWidget : public Fl_Widget {
   int spp_;
 public:
   WaveWidget(int x, int y, int w, int h, SampleBuffer *sb)
-    : Fl_Widget(x,y,w,h,0), sb_(sb), spp_(1000) {}
+    : Fl_Widget(x,y,w,h,0), sb_(sb), spp_(FRAMES_PER_PIXEL) {}
   void draw() {
     fl_color(FL_BACKGROUND_COLOR);
     fl_rectf(x(),y(),w(),h());
@@ -329,6 +330,13 @@ public:
         fl_line_style(FL_DASH, 0, dashes);
         fl_line(x()+xoffs,y(),x()+xoffs,y()+h());
         fl_line_style(0);
+	TimeOffset to;
+	sb_->calcTimeOffset(offset, &to);
+	char buf[32];
+	sprintf(buf, "%02d:%02d:%02d,%03d",
+		to.hours, to.minutes, to.seconds, to.ms);
+	fl_font(0,8);
+	fl_draw(buf, x()+xoffs+8,y()+h()-fl_height());
         segStartIdx++;
       }
       offset += spp_;
