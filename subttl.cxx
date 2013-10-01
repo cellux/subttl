@@ -392,6 +392,7 @@ public:
     end();
     updateEditorText();
     Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWaveWidgetIfNecessary, this);
+    resizable(this);
   }
   void updateEditorText() {
     editor_->buffer()->text(sb_->curseg().text());
