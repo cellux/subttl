@@ -79,8 +79,28 @@ public:
   int cursor() { return cursor_; }
   const Segment& curseg() { return segments_[curseg_]; }
   const Segment& nextseg() { return segments_[curseg_+1]; }
+  const Segment& prevseg() { return segments_[curseg_-1]; }
   void jumpToSegStart() {
     cursor_ = curseg().start;
+  }
+  void nudgeSegStart(int offset) {
+    if (curseg_ == 0) return;
+    if (offset > 0) {
+      int limit = nextseg().start - curseg().start;
+      if (offset < limit) {
+        segments_[curseg_].start += offset;
+        if (cursor_ < curseg().start) {
+          cursor_ = curseg().start;
+        }
+      }
+    }
+    else if (offset < 0) {
+      offset = abs(offset);
+      int limit = curseg().start - prevseg().start;
+      if (offset < limit) {
+        segments_[curseg_].start -= offset;
+      }
+    }
   }
   void updateSegmentText(const char *t) {
     segments_[curseg_].text(t);
@@ -500,12 +520,24 @@ public:
         break;
       }
     case FL_Left:
-      sb_->skipSeconds(-1);
-      updateEditorText();
+      if (Fl::event_shift()) {
+        sb_->nudgeSegStart(-FRAMES_PER_PIXEL);
+        waveWidget_->redraw();
+      }
+      else {
+        sb_->skipSeconds(-1);
+        updateEditorText();
+      }
       break;
     case FL_Right:
-      sb_->skipSeconds(1);
-      updateEditorText();
+      if (Fl::event_shift()) {
+        sb_->nudgeSegStart(FRAMES_PER_PIXEL);
+        waveWidget_->redraw();
+      }
+      else {
+        sb_->skipSeconds(1);
+        updateEditorText();
+      }
       break;
     default:
       return 0;
