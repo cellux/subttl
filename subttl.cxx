@@ -481,12 +481,23 @@ public:
       updateEditorText();
       break;
     case ',':
-      sb_->skipSegments(-1);
-      updateEditorText();
+      if (Fl::event_shift()) {
+        sb_->nudgeSegStart(-FRAMES_PER_PIXEL);
+      }
+      else {
+        sb_->skipSegments(-1);
+        updateEditorText();
+      }
       break;
     case '.':
-      sb_->skipSegments(1);
-      updateEditorText();
+      if (Fl::event_shift()) {
+        sb_->nudgeSegStart(FRAMES_PER_PIXEL);
+        waveWidget_->redraw();
+      }
+      else {
+        sb_->skipSegments(1);
+        updateEditorText();
+      }
       break;
     case 'e':
       playing_ = false;
@@ -516,23 +527,12 @@ public:
       hide();
       break;
     case FL_Left:
-      if (Fl::event_shift()) {
-        sb_->nudgeSegStart(-FRAMES_PER_PIXEL);
-      }
-      else {
-        sb_->skipSeconds(-1);
-        updateEditorText();
-      }
+      sb_->skipSeconds(-1);
+      updateEditorText();
       break;
     case FL_Right:
-      if (Fl::event_shift()) {
-        sb_->nudgeSegStart(FRAMES_PER_PIXEL);
-        waveWidget_->redraw();
-      }
-      else {
-        sb_->skipSeconds(1);
-        updateEditorText();
-      }
+      sb_->skipSeconds(1);
+      updateEditorText();
       break;
     default:
       return 0;
