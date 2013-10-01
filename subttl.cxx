@@ -355,7 +355,7 @@ public:
         fl_line(x()+xoffs,y(),x()+xoffs,y()+h());
         fl_line_style(0);
 	TimeOffset to;
-	sb_->calcTimeOffset(offset, &to);
+	sb_->calcTimeOffset(segStarts[segStartIdx], &to);
 	char buf[32];
 	sprintf(buf, "%02d:%02d:%02d,%03d",
 		to.hours, to.minutes, to.seconds, to.ms);
