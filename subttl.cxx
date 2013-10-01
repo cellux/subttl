@@ -459,6 +459,9 @@ public:
     }
   }
   int handleKey(int keycode) {
+    if (Fl::event_shift() && (keycode >= 'a' && keycode <= 'z')) {
+      keycode -= ('a'-'A');
+    }
     switch (keycode) {
     case ' ':
       sb_->jumpToSegStart();
@@ -473,13 +476,10 @@ public:
       sb_->addSegment();
       updateEditorText();
       break;
-    case 'j':
-      if (Fl::event_shift()) {
-        sb_->joinSegment();
-        updateEditorText();
-        break;
-      }
-      else return 0;
+    case 'J':
+      sb_->joinSegment();
+      updateEditorText();
+      break;
     case ',':
       sb_->skipSegments(-1);
       updateEditorText();
@@ -494,11 +494,9 @@ public:
       editor_->activate();
       editor_->take_focus();
       break;
-    case 's':
-      if (Fl::event_shift()) {
-	sb_->saveSegments(srtpath_);
-	break;
-      }
+    case 'S':
+      sb_->saveSegments(srtpath_);
+      break;
     case FL_Escape:
       if (editing_) {
         editing_ = false;
@@ -513,16 +511,13 @@ public:
         playing_ = false;
       }
       break;
-    case 'q':
-      if (Fl::event_shift()) {
-        playing_ = false;
-        hide();
-        break;
-      }
+    case 'Q':
+      playing_ = false;
+      hide();
+      break;
     case FL_Left:
       if (Fl::event_shift()) {
         sb_->nudgeSegStart(-FRAMES_PER_PIXEL);
-        waveWidget_->redraw();
       }
       else {
         sb_->skipSeconds(-1);
@@ -542,6 +537,7 @@ public:
     default:
       return 0;
     }
+    waveWidget_->redraw();
     return 1;
   }
   int handle(int event) {
