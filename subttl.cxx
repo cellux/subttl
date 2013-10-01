@@ -21,6 +21,7 @@
 
 static const char *APP_NAME = "subttl";
 static const int REFRESH_RATE = 25; // Hz
+static const int FRAMES_PER_PIXEL = 1000;
 
 struct Segment {
 private:
@@ -37,6 +38,11 @@ public:
     size_t pos;
     while ((pos = text_.find("\n\n")) != std::string::npos) {
       text_.erase(pos+1,1);
+    }
+    // ensure there is a newline at the end
+    int l = text_.length();
+    if (l==0 || text_[l-1]!='\n') {
+      text_.append("\n");
     }
   }
 };
@@ -299,7 +305,7 @@ class WaveWidget : public Fl_Widget {
   int spp_;
 public:
   WaveWidget(int x, int y, int w, int h, SampleBuffer *sb)
-    : Fl_Widget(x,y,w,h,0), sb_(sb), spp_(1000) {}
+    : Fl_Widget(x,y,w,h,0), sb_(sb), spp_(FRAMES_PER_PIXEL) {}
   void draw() {
     fl_color(FL_BACKGROUND_COLOR);
     fl_rectf(x(),y(),w(),h());
@@ -328,6 +334,13 @@ public:
         fl_line_style(FL_DASH, 0, dashes);
         fl_line(x()+xoffs,y(),x()+xoffs,y()+h());
         fl_line_style(0);
+	TimeOffset to;
+	sb_->calcTimeOffset(offset, &to);
+	char buf[32];
+	sprintf(buf, "%02d:%02d:%02d,%03d",
+		to.hours, to.minutes, to.seconds, to.ms);
+	fl_font(0,8);
+	fl_draw(buf, x()+xoffs+8,y()+h()-fl_height());
         segStartIdx++;
       }
       offset += spp_;
@@ -348,12 +361,6 @@ public:
   }
 };
 
-void cbRedrawWidget(void *data) {
-  Fl_Widget *w = (Fl_Widget*) data;
-  w->redraw();
-  Fl::repeat_timeout(1.0/REFRESH_RATE, cbRedrawWidget, w);
-}
-
 class MainWindow : public Fl_Double_Window {
   std::string path_;
   std::string srtpath_;
@@ -363,6 +370,7 @@ class MainWindow : public Fl_Double_Window {
   bool editing_;
   WaveWidget *waveWidget_;
   Fl_Text_Editor *editor_;
+  int cursorAtLastRedraw_;
 
 public:
   MainWindow(int w, int h, char *path, SampleBuffer *sb)
@@ -372,7 +380,8 @@ public:
       sb_(sb),
       playing_(false),
       playseg_(false),
-      editing_(false)
+      editing_(false),
+      cursorAtLastRedraw_(0)
   {
     if (access(srtpath_.c_str(), F_OK)==0) {
       sb_->loadSegments(srtpath_);
@@ -382,10 +391,12 @@ public:
     waveWidget_ = new WaveWidget(0,0,w,h/2,sb);
     editor_ = new Fl_Text_Editor(0,h/2,w,h/2);
     editor_->buffer(new Fl_Text_Buffer());
+    editor_->deactivate();
     tile->end();
     end();
     updateEditorText();
-    Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWidget, waveWidget_);
+    Fl::add_timeout(1.0/REFRESH_RATE, cbRedrawWaveWidgetIfNecessary, this);
+    resizable(this);
   }
   void updateEditorText() {
     editor_->buffer()->text(sb_->curseg().text());
@@ -393,6 +404,17 @@ public:
   static void cbUpdateEditorText(void *data) {
     MainWindow *mw = (MainWindow*) data;
     mw->updateEditorText();
+  }
+  void redrawWaveWidgetIfNecessary() {
+    if (abs(sb_->cursor()-cursorAtLastRedraw_) >= FRAMES_PER_PIXEL) {
+      waveWidget_->redraw();
+      cursorAtLastRedraw_ = sb_->cursor();
+    }
+  }
+  static void cbRedrawWaveWidgetIfNecessary(void *data) {
+    MainWindow *mw = (MainWindow*) data;
+    mw->redrawWaveWidgetIfNecessary();
+    Fl::repeat_timeout(1.0/REFRESH_RATE, cbRedrawWaveWidgetIfNecessary, data);
   }
   void copyFramesForPlayback(float *buf, int frameCount) {
     if (playing_) {
@@ -449,7 +471,7 @@ public:
     case 'e':
       playing_ = false;
       editing_ = true;
-      editor_->set_visible_focus();
+      editor_->activate();
       editor_->take_focus();
       break;
     case 's':
@@ -464,7 +486,7 @@ public:
 	// update the editor because the segment may have modified the
 	// text (e.g. may have removed empty lines from it)
 	updateEditorText();
-        editor_->clear_visible_focus();
+        editor_->deactivate();
         waveWidget_->take_focus();
       }
       else if (playing_) {
