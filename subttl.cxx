@@ -387,6 +387,7 @@ public:
     waveWidget_ = new WaveWidget(0,0,w,h/2,sb);
     editor_ = new Fl_Text_Editor(0,h/2,w,h/2);
     editor_->buffer(new Fl_Text_Buffer());
+    editor_->deactivate();
     tile->end();
     end();
     updateEditorText();
@@ -465,7 +466,7 @@ public:
     case 'e':
       playing_ = false;
       editing_ = true;
-      editor_->set_visible_focus();
+      editor_->activate();
       editor_->take_focus();
       break;
     case 's':
@@ -480,7 +481,7 @@ public:
 	// update the editor because the segment may have modified the
 	// text (e.g. may have removed empty lines from it)
 	updateEditorText();
-        editor_->clear_visible_focus();
+        editor_->deactivate();
         waveWidget_->take_focus();
       }
       else if (playing_) {
