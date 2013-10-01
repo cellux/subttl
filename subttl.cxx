@@ -38,6 +38,11 @@ public:
     while ((pos = text_.find("\n\n")) != std::string::npos) {
       text_.erase(pos+1,1);
     }
+    // ensure there is a newline at the end
+    int l = text_.length();
+    if (l==0 || text_[l-1]!='\n') {
+      text_.append("\n");
+    }
   }
 };
 
