@@ -94,9 +94,13 @@ public:
     }
   }
   void joinSegment() {
-    if (cursor_ < nframes_ && curseg_ > 0 && strlen(curseg().text()) == 0) {
+    if (cursor_ < nframes_ && curseg_ > 0) {
+      std::string savedText = curseg().text();
       segments_.erase(segments_.begin()+curseg_);
       curseg_--;
+      std::string t = curseg().text();
+      t.append(savedText);
+      updateSegmentText(t.c_str());
     }
   }
   void skipSegments(int count) {
